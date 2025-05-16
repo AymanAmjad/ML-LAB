@@ -1,88 +1,72 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
-import pickle
 
-# Step 2: Get the Data
-file_path = "/content/heart-attack-risk-prediction-dataset.csv"
-df = pd.read_csv(file_path)
+def estimate_coef(x, y):
+    n = np.size(x)
 
-# Step 3: Discover and Visualize Data
-print(df.info())
-print(df.describe())
+    # Mean values
+    m_x = np.mean(x)
+    m_y = np.mean(y)
+    m_xy = np.mean(x * y)
+    m_x2 = np.mean(x ** 2)
 
-# Visualize correlations
-# Convert 'Gender' to numeric before calculating correlation for the heatmap
-df['Gender'] = pd.factorize(df['Gender'])[0]
+    # Calculating cross-deviation and deviation about x
+    SS_xy = np.sum(y * x) - n * m_y * m_x
+    SS_xx = np.sum(x * x) - n * m_x * m_x
 
-plt.figure(figsize=(10, 6))
-sns.heatmap(df.corr(), annot=False, cmap="coolwarm")
-plt.title("Feature Correlation Heatmap")
-plt.show()
+    # Calculating regression coefficients
+    b_1 = SS_xy / SS_xx
+    b_0 = m_y - b_1 * m_x
 
-# Step 4: Prepare the Data
-df = df.drop(columns=["Heart Attack Risk (Text)"])  # Removing redundant target column
+    # Print mean values
+    print(f"Mean X: {m_x:.2f}")
+    print(f"Mean Y: {m_y:.2f}")
+    print(f"Mean XY: {m_xy:.2f}")
+    print(f"Mean X^2: {m_x2:.2f}")
 
-# Handling missing values
-df.dropna(inplace=True)
+    return b_0, b_1
 
-# Splitting data
-# Keep 'Gender' in X for the ColumnTransformer
-X = df.drop(columns=["Heart Attack Risk (Binary)"])
-y = df["Heart Attack Risk (Binary)"]
+def calculate_error(x, y, b):
+    y_pred = b[0] + b[1] * x
+    errors = y - y_pred  # Residual errors
+    mse = np.mean(errors ** 2)  # Mean Squared Error
+    rmse = np.sqrt(mse)  # Root Mean Squared Error
 
-# Preprocessing Pipelines
-num_features = X.columns[X.columns != 'Gender'] # Exclude 'Gender' from numerical features
-cat_features = ["Gender"]
+    print(f"\nMean Squared Error (MSE): {mse:.2f}")
+    print(f"Root Mean Squared Error (RMSE): {rmse:.2f}")
 
-num_pipeline = Pipeline([
-    ("imputer", SimpleImputer(strategy="median")),
-    ("scaler", StandardScaler())
-])
+def plot_regression_line(x, y, b):
+    plt.scatter(x, y, color="m", marker="o", s=30, label="Data Points")
 
-cat_pipeline = Pipeline([
-    ("encoder", OneHotEncoder())
-])
+    # Predicted response vector
+    y_pred = b[0] + b[1] * x
 
-# Define the ColumnTransformer with remainder='passthrough'
-preprocessor = ColumnTransformer(
-    transformers=[
-        ("num", num_pipeline, num_features),
-        ("cat", cat_pipeline, cat_features),
-    ],
-    remainder='passthrough'  # Pass 'Gender' through without transformation
-)
+    # Plot regression line
+    plt.plot(x, y_pred, color="g", label="Regression Line")
 
-# Train-Test Split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Labels and legend
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.legend()
+    plt.show()
 
-# Transform features
-X_train = preprocessor.fit_transform(X_train)
-X_test = preprocessor.transform(X_test)
+def main():
+    df = pd.read_csv("linear_regression_data.csv")
 
-# Step 5: Select and Train a Model
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
+    # Convert data to numpy arrays
+    x = df['X'].values
+    y = df['Y'].values
 
-# Step 6: Fine-tune Model
-param_grid = {"n_estimators": [50, 100, 200], "max_depth": [None, 10, 20]}
-grid_search = GridSearchCV(RandomForestClassifier(random_state=42), param_grid, cv=5)
-grid_search.fit(X_train, y_train)
-best_model = grid_search.best_estimator_
+    # Estimate coefficients
+    b = estimate_coef(x, y)
 
-# Step 7: Present Solution
-y_pred = best_model.predict(X_test)
-print("Accuracy:", accuracy_score(y_test, y_pred))
-print(classification_report(y_test, y_pred))
+    print(f"\nEstimated coefficients:\nb_0 = {b[0]:.2f} \nb_1 = {b[1]:.2f}")
 
-# Step 8: Launch, Monitor, Maintain
-pickle.dump(best_model, open("heart_attack_model.pkl", "wb"))
-print("Model saved as heart_attack_model.pkl")
+    # Calculate and print errors
+    calculate_error(x, y, b)
+
+    # Plot regression line
+    plot_regression_line(x, y, b)
+
+main()
